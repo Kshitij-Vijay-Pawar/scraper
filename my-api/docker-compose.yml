@@ -1,0 +1,48 @@
+version: '3.8'
+
+services:
+  # Redis instance for BullMQ queue management
+  redis:
+    image: redis:7-alpine
+    container_name: mcfly-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: always
+
+  # Express API Server container
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mcfly-api
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - redis
+    restart: always
+
+  # Background worker container running as a separate process
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mcfly-worker
+    command: bun run src/workers/search.worker.ts
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - redis
+    restart: always
+
+volumes:
+  redis_data:
