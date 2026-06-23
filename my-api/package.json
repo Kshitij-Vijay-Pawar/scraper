@@ -19,6 +19,7 @@
   "scripts": {
     "dev": "bun --watch src/index.ts",
     "worker": "bun --watch src/workers/search.worker.ts",
+    "worker:enrichment": "bun --watch src/workers/enrichment.worker.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"

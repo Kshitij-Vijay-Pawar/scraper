@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { useStore, SearchJob } from "../../../store/useStore";
-import { Search, Loader2, Play, CheckCircle, AlertCircle, RefreshCcw, Database, ExternalLink, Download, FileSpreadsheet, Sparkles, Mail, Phone, Globe, Star, Copy, Check } from "lucide-react";
+import { useStore, SearchJob, EnrichmentJobStatus } from "../../../store/useStore";
+import { Search, Loader2, Play, CheckCircle, AlertCircle, RefreshCcw, Database, ExternalLink, Download, FileSpreadsheet, Sparkles, Mail, Phone, Globe, Star, Copy, Check, XCircle } from "lucide-react";
 import ApiLogsConsole from "../../../components/ApiLogsConsole";
 
 export default function ScraperPage() {
@@ -18,7 +18,9 @@ export default function ScraperPage() {
     selectedApiKeyForTesting,
     initialize,
     leads,
-    enrichLeads,
+    enrichSearch,
+    fetchEnrichmentProgress,
+    cancelEnrichmentJob,
   } = useStore();
 
   const [keyword, setKeyword] = useState("");
@@ -27,7 +29,10 @@ export default function ScraperPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchErr, setSearchErr] = useState("");
   const [isEnriching, setIsEnriching] = useState(false);
+  const [enrichmentJobId, setEnrichmentJobId] = useState<string | null>(null);
+  const [enrichmentStatus, setEnrichmentStatus] = useState<EnrichmentJobStatus | null>(null);
   const [copiedText, setCopiedText] = useState<string | null>(null);
+  const enrichPollingRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -38,12 +43,57 @@ export default function ScraperPage() {
   const handleEnrich = async () => {
     if (!currentSearch) return;
     setIsEnriching(true);
-    const success = await enrichLeads(currentSearch.id);
+    setEnrichmentStatus(null);
+    const jobId = await enrichSearch(currentSearch.id);
+    if (jobId) {
+      setEnrichmentJobId(jobId);
+    } else {
+      setIsEnriching(false);
+    }
+  };
+
+  const handleCancelEnrichment = async () => {
+    if (!enrichmentJobId) return;
+    await cancelEnrichmentJob(enrichmentJobId);
+    if (enrichPollingRef.current) {
+      clearInterval(enrichPollingRef.current);
+      enrichPollingRef.current = null;
+    }
     setIsEnriching(false);
-    if (success) {
+    setEnrichmentStatus(prev => prev ? { ...prev, status: "cancelled" } : null);
+    if (currentSearch) {
       await fetchSearchLeads(currentSearch.id);
     }
   };
+
+  // Poll enrichment progress
+  useEffect(() => {
+    if (enrichmentJobId && isEnriching) {
+      enrichPollingRef.current = setInterval(async () => {
+        const progress = await fetchEnrichmentProgress(enrichmentJobId);
+        if (progress) {
+          setEnrichmentStatus(progress);
+          if (progress.status === "completed" || progress.status === "failed" || progress.status === "cancelled") {
+            if (enrichPollingRef.current) {
+              clearInterval(enrichPollingRef.current);
+              enrichPollingRef.current = null;
+            }
+            setIsEnriching(false);
+            if (currentSearch) {
+              await fetchSearchLeads(currentSearch.id);
+            }
+          }
+        }
+      }, 1500);
+    }
+
+    return () => {
+      if (enrichPollingRef.current) {
+        clearInterval(enrichPollingRef.current);
+        enrichPollingRef.current = null;
+      }
+    };
+  }, [enrichmentJobId, isEnriching]);
 
   const [isDownloading, setIsDownloading] = useState<string | null>(null);
 
@@ -426,18 +476,29 @@ export default function ScraperPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     {currentSearch.status === "completed" && (
-                      <button
-                        onClick={handleEnrich}
-                        disabled={isEnriching || leads.length === 0}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-[10px] font-semibold text-white rounded-lg transition-all cursor-pointer"
-                      >
-                        {isEnriching ? (
-                          <Loader2 className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <Sparkles className="h-3 w-3" />
+                      <>
+                        <button
+                          onClick={handleEnrich}
+                          disabled={isEnriching || leads.length === 0}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-[10px] font-semibold text-white rounded-lg transition-all cursor-pointer"
+                        >
+                          {isEnriching ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Sparkles className="h-3 w-3" />
+                          )}
+                          Enrich Leads
+                        </button>
+                        {isEnriching && (
+                          <button
+                            onClick={handleCancelEnrichment}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600/20 hover:bg-red-600/30 border border-red-500/20 text-[10px] font-semibold text-red-400 rounded-lg transition-all cursor-pointer"
+                          >
+                            <XCircle className="h-3 w-3" />
+                            Cancel
+                          </button>
                         )}
-                        Enrich Leads
-                      </button>
+                      </>
                     )}
                     <button
                       onClick={() => fetchSearchLeads(currentSearch.id)}
@@ -448,6 +509,55 @@ export default function ScraperPage() {
                     </button>
                   </div>
                 </div>
+
+                {/* Enrichment Progress */}
+                {enrichmentStatus && (enrichmentStatus.status === "running" || enrichmentStatus.status === "completed" || enrichmentStatus.status === "cancelled") && (
+                  <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-4 space-y-3">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-zinc-400 font-semibold flex items-center gap-1.5">
+                        <Sparkles className="h-3.5 w-3.5 text-violet-400" />
+                        Enrichment Progress
+                      </span>
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                        enrichmentStatus.status === "completed"
+                          ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                          : enrichmentStatus.status === "cancelled"
+                            ? "bg-zinc-500/10 text-zinc-400 border-zinc-500/20"
+                            : "bg-amber-500/10 text-amber-400 border-amber-500/20"
+                      }`}>
+                        {enrichmentStatus.status}
+                      </span>
+                    </div>
+                    <div className="h-2 w-full rounded-full bg-zinc-800 overflow-hidden">
+                      <div
+                        className={`h-full transition-all duration-500 rounded-full ${
+                          enrichmentStatus.status === "completed"
+                            ? "bg-gradient-to-r from-emerald-600 to-emerald-400"
+                            : "bg-gradient-to-r from-violet-600 to-indigo-600"
+                        }`}
+                        style={{ width: `${enrichmentStatus.progress}%` }}
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 gap-3 text-center">
+                      <div>
+                        <p className="text-lg font-bold text-white font-mono">{enrichmentStatus.completedLeads}/{enrichmentStatus.totalLeads}</p>
+                        <p className="text-[9px] text-zinc-500 uppercase font-semibold">Completed</p>
+                      </div>
+                      <div>
+                        <p className="text-lg font-bold text-white font-mono">{enrichmentStatus.progress}%</p>
+                        <p className="text-[9px] text-zinc-500 uppercase font-semibold">Progress</p>
+                      </div>
+                      <div>
+                        <p className="text-lg font-bold text-red-400 font-mono">{enrichmentStatus.failedLeads}</p>
+                        <p className="text-[9px] text-zinc-500 uppercase font-semibold">Failed</p>
+                      </div>
+                      <div>
+                        <p className="text-lg font-bold text-zinc-300 font-mono">{enrichmentStatus.remainingLeads}</p>
+                        <p className="text-[9px] text-zinc-500 uppercase font-semibold">Remaining</p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {leads.length === 0 ? (
                   <div className="p-8 text-center text-zinc-500 text-xs border border-dashed border-zinc-800 rounded-xl">
@@ -468,7 +578,11 @@ export default function ScraperPage() {
                       </thead>
                       <tbody className="divide-y divide-zinc-900 text-zinc-300">
                         {leads.map((lead) => (
-                          <tr key={lead.id} className="hover:bg-zinc-900/10 transition-colors">
+                          <tr
+                            key={lead.id}
+                            className="hover:bg-zinc-900/20 transition-colors cursor-pointer"
+                            onClick={() => router.push(`/leads/${lead.id}`)}
+                          >
                             <td className="px-4 py-2.5 font-semibold text-zinc-200 truncate max-w-[150px]" title={lead.name}>
                               {lead.name}
                             </td>
@@ -488,7 +602,10 @@ export default function ScraperPage() {
                                   <Mail className="h-3 w-3 text-zinc-500" />
                                   <span className="truncate max-w-[100px]" title={lead.email}>{lead.email}</span>
                                   <button
-                                    onClick={() => handleCopy(lead.email!)}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleCopy(lead.email!);
+                                    }}
                                     className="p-0.5 rounded hover:bg-zinc-800 text-zinc-500 hover:text-white transition-colors cursor-pointer"
                                   >
                                     {copiedText === lead.email ? (
@@ -513,6 +630,7 @@ export default function ScraperPage() {
                                   href={lead.website}
                                   target="_blank"
                                   rel="noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
                                   className="flex items-center gap-0.5 text-violet-400 hover:text-violet-300 transition-colors"
                                 >
                                   <Globe className="h-3 w-3" />
@@ -529,6 +647,7 @@ export default function ScraperPage() {
                                   href={lead.facebook}
                                   target="_blank"
                                   rel="noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
                                   className="text-[9px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-all font-semibold inline-flex items-center gap-0.5"
                                 >
                                   Facebook

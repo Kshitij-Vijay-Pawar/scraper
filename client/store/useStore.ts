@@ -41,12 +41,35 @@ export interface Lead {
   name: string;
   phone: string | null;
   email: string | null;
+  emails: string[] | null;
   website: string | null;
   address: string | null;
   rating: number | null;
   reviews: number | null;
+  latitude: number | null;
+  longitude: number | null;
   facebook: string | null;
+  instagram: string | null;
+  linkedin: string | null;
+  twitter: string | null;
   enrichmentStatus: string | null;
+  websiteLastChecked: string | null;
+  emailSource: string | null;
+  socialSource: string | null;
+  createdAt: string;
+  searchKeyword?: string;
+  searchLocation?: string;
+}
+
+export interface EnrichmentJobStatus {
+  id: string;
+  status: "pending" | "running" | "completed" | "failed" | "cancelled";
+  progress: number;
+  totalLeads: number;
+  completedLeads: number;
+  failedLeads: number;
+  remainingLeads: number;
+  currentlyProcessing: number;
 }
 
 export interface ApiLog {
@@ -85,8 +108,12 @@ interface AppState {
   startSearch: (keyword: string, location: string, limit: number, apiKeyOverride?: string) => Promise<string | null>;
   fetchSearchStatus: (id: string, apiKeyOverride?: string) => Promise<SearchJob | null>;
   fetchSearchLeads: (id: string, apiKeyOverride?: string) => Promise<void>;
+  fetchLeadById: (id: string, apiKeyOverride?: string) => Promise<Lead | null>;
   fetchAllLeads: (apiKeyOverride?: string) => Promise<void>;
-  enrichLeads: (searchId: string, apiKeyOverride?: string) => Promise<boolean>;
+  enrichLeadsByIds: (leadIds: string[], force?: boolean) => Promise<string | null>;
+  enrichSearch: (searchId: string, force?: boolean) => Promise<string | null>;
+  fetchEnrichmentProgress: (jobId: string) => Promise<EnrichmentJobStatus | null>;
+  cancelEnrichmentJob: (jobId: string) => Promise<boolean>;
   clearLogs: () => void;
   logRequest: (method: string, url: string, status: number, reqBody?: any, respBody?: any) => void;
 }
@@ -449,9 +476,43 @@ export const useStore = create<AppState>((set, get) => {
       }
     },
 
-    enrichLeads: async (searchId, apiKeyOverride) => {
+    fetchLeadById: async (id, apiKeyOverride) => {
       const { token, selectedApiKeyForTesting } = get();
       const apiKey = apiKeyOverride || selectedApiKeyForTesting;
+      const headers: Record<string, string> = {};
+
+      if (apiKey) {
+        headers["x-api-key"] = apiKey;
+      } else if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      try {
+        const res = await fetch(`/api/proxy/leads/${id}`, { headers });
+        const data = await res.json();
+        logApiCall("GET", `/leads/${id}`, res.status, undefined, data);
+        if (res.ok && data.success) {
+          const currentLeads = get().leads;
+          const exists = currentLeads.some(l => l.id === id);
+          if (exists) {
+            set({
+              leads: currentLeads.map(l => l.id === id ? data.lead : l)
+            });
+          } else {
+            set({ leads: [...currentLeads, data.lead] });
+          }
+          return data.lead;
+        }
+        return null;
+      } catch (err: any) {
+        logApiCall("GET", `/leads/${id}`, 500, undefined, { error: err.message });
+        return null;
+      }
+    },
+
+    enrichLeadsByIds: async (leadIds, force = false) => {
+      const { token, selectedApiKeyForTesting } = get();
+      const apiKey = selectedApiKeyForTesting;
       const headers: Record<string, string> = { "Content-Type": "application/json" };
 
       if (apiKey) {
@@ -460,18 +521,101 @@ export const useStore = create<AppState>((set, get) => {
         headers["Authorization"] = `Bearer ${token}`;
       }
 
-      const reqBody = { searchId };
+      const reqBody = { leadIds, force };
       try {
-        const res = await fetch("/api/leads/enrich", {
+        const res = await fetch("/api/proxy/enrich/leads", {
           method: "POST",
           headers,
           body: JSON.stringify(reqBody),
         });
         const data = await res.json();
-        logApiCall("POST", "/leads/enrich", res.status, reqBody, data);
+        logApiCall("POST", "/enrich/leads", res.status, reqBody, data);
+        if (res.ok && data.success) {
+          return data.jobId;
+        }
+        return null;
+      } catch (err: any) {
+        logApiCall("POST", "/enrich/leads", 500, reqBody, { error: err.message });
+        return null;
+      }
+    },
+
+    enrichSearch: async (searchId, force = false) => {
+      const { token, selectedApiKeyForTesting } = get();
+      const apiKey = selectedApiKeyForTesting;
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+
+      if (apiKey) {
+        headers["x-api-key"] = apiKey;
+      } else if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const reqBody = { force };
+      try {
+        const res = await fetch(`/api/proxy/enrich/search/${searchId}`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(reqBody),
+        });
+        const data = await res.json();
+        logApiCall("POST", `/enrich/search/${searchId}`, res.status, reqBody, data);
+        if (res.ok && data.success) {
+          return data.jobId;
+        }
+        return null;
+      } catch (err: any) {
+        logApiCall("POST", `/enrich/search/${searchId}`, 500, reqBody, { error: err.message });
+        return null;
+      }
+    },
+
+    fetchEnrichmentProgress: async (jobId) => {
+      const { token, selectedApiKeyForTesting } = get();
+      const apiKey = selectedApiKeyForTesting;
+      const headers: Record<string, string> = {};
+
+      if (apiKey) {
+        headers["x-api-key"] = apiKey;
+      } else if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      try {
+        const res = await fetch(`/api/proxy/enrich/${jobId}`, { headers });
+        const data = await res.json();
+        logApiCall("GET", `/enrich/${jobId}`, res.status, undefined, data);
+        if (res.ok && data.success) {
+          return data as EnrichmentJobStatus;
+        }
+        return null;
+      } catch (err: any) {
+        logApiCall("GET", `/enrich/${jobId}`, 500, undefined, { error: err.message });
+        return null;
+      }
+    },
+
+    cancelEnrichmentJob: async (jobId) => {
+      const { token, selectedApiKeyForTesting } = get();
+      const apiKey = selectedApiKeyForTesting;
+      const headers: Record<string, string> = {};
+
+      if (apiKey) {
+        headers["x-api-key"] = apiKey;
+      } else if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      try {
+        const res = await fetch(`/api/proxy/enrich/${jobId}`, {
+          method: "DELETE",
+          headers,
+        });
+        const data = await res.json();
+        logApiCall("DELETE", `/enrich/${jobId}`, res.status, undefined, data);
         return res.ok && data.success;
       } catch (err: any) {
-        logApiCall("POST", "/leads/enrich", 500, reqBody, { error: err.message });
+        logApiCall("DELETE", `/enrich/${jobId}`, 500, undefined, { error: err.message });
         return false;
       }
     },

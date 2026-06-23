@@ -183,6 +183,36 @@ These endpoints require a JWT Bearer token and are used by developers to create,
 
 These endpoints require authentication. You must provide EITHER a JWT Bearer token in the `Authorization` header OR an API Key (via `x-api-key` header or Bearer token starting with `sk_live_`).
 
+### List Search Jobs
+* **Route:** `GET /searches`
+* **Purpose:** Retrieve all search jobs belonging to the authenticated user.
+* **Headers:** `x-api-key: sk_live_...` or `Authorization: Bearer <token>`
+* **Curl Command:**
+  ```bash
+  curl -s -X GET http://localhost:3000/searches \
+    -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..."
+  ```
+* **Expected Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "searches": [
+      {
+        "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+        "userId": "7acfa957-7a2e-4b2e-a74b-2f08a9f0291a",
+        "apiKeyId": "1b392a83-a74b-4b2e-a9b0-9a291f08bfcd",
+        "keyword": "dentist",
+        "location": "Miami",
+        "status": "completed",
+        "totalLeads": 12,
+        "scrapedCount": 12,
+        "progress": 100,
+        "createdAt": "2026-06-22T04:36:20.000Z"
+      }
+    ]
+  }
+  ```
+
 ### Start Search & Scrape
 * **Route:** `POST /search`
 * **Purpose:** Initialize a Google Maps search and scrape leads.
@@ -291,37 +321,142 @@ These endpoints require authentication. You must provide EITHER a JWT Bearer tok
     "leads": [...]
   }
   ```
-
-### Manually Enrich Leads
-* **Route:** `POST /leads/enrich`
-* **Purpose:** Manually trigger website scraping to enrich emails and social links for specific leads. It runs in the background. You must provide one of: `leadId`, `leadIds`, or `searchId`.
-* **Headers:** `x-api-key: sk_live_...` or `Authorization: Bearer <token>`, `Content-Type: application/json`
-* **Request Body:**
-  ```json
-  {
-    "searchId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"
-  }
-  ```
-  *(Alternative body examples)*
-  ```json
-  { "leadId": "3b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6e" }
-  ```
-  ```json
-  { "leadIds": ["3b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6e", "11223344-5566-7788-9900-aabbccddeeff"] }
-  ```
+### Retrieve Single Lead
+* **Route:** `GET /leads/:id`
+* **Purpose:** Retrieve the full profile, reviews, coordinates, socials, and alternative email list of a single lead by ID, with keyword/location search context.
+* **Headers:** `x-api-key: sk_live_...` or `Authorization: Bearer <token>`
 * **Curl Command:**
   ```bash
-  curl -s -X POST http://localhost:3000/leads/enrich \
-    -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..." \
-    -H "Content-Type: application/json" \
-    -d '{"searchId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d"}'
+  curl -s -X GET http://localhost:3000/leads/7d4e4551-39e3-41b7-9b1d-2c6fa80a983e \
+    -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..."
   ```
 * **Expected Response (200 OK):**
   ```json
   {
     "success": true,
-    "message": "Enrichment started in the background",
-    "count": 45
+    "lead": {
+      "id": "7d4e4551-39e3-41b7-9b1d-2c6fa80a983e",
+      "searchId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+      "name": "Miami Dental Care",
+      "phone": "+13055550199",
+      "website": "https://miamidental.com",
+      "address": "123 Main St, Miami, FL",
+      "rating": 4.7,
+      "reviews": 85,
+      "latitude": 25.7617,
+      "longitude": -80.1918,
+      "email": "info@miamidental.com",
+      "emails": ["info@miamidental.com", "billing@miamidental.com"],
+      "facebook": "https://facebook.com/miamidental",
+      "instagram": null,
+      "linkedin": null,
+      "twitter": null,
+      "enrichmentStatus": "completed",
+      "websiteLastChecked": "2026-06-23T11:40:00.000Z",
+      "emailSource": "website",
+      "socialSource": "website",
+      "createdAt": "2026-06-22T04:36:20.000Z",
+      "searchKeyword": "dentist",
+      "searchLocation": "Miami"
+    }
+  }
+  ```
+
+### Enrich Specific Leads
+* **Route:** `POST /enrich/leads`
+* **Purpose:** Create a manual background job to enrich specific leads by their IDs.
+* **Headers:** `x-api-key: sk_live_...` or `Authorization: Bearer <token>`, `Content-Type: application/json`
+* **Request Body:**
+  ```json
+  {
+    "leadIds": ["7d4e4551-39e3-41b7-9b1d-2c6fa80a983e"],
+    "force": false
+  }
+  ```
+  *(Set `force: true` to bypass the already-enriched protection and re-enrich leads)*
+* **Curl Command:**
+  ```bash
+  curl -s -X POST http://localhost:3000/enrich/leads \
+    -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..." \
+    -H "Content-Type: application/json" \
+    -d '{"leadIds": ["7d4e4551-39e3-41b7-9b1d-2c6fa80a983e"], "force": false}'
+  ```
+* **Expected Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "jobId": "5c9e2b10-6ee7-41ab-8012-9c17be9f80a2",
+    "totalLeads": 1
+  }
+  ```
+
+### Enrich All Leads in a Search
+* **Route:** `POST /enrich/search/:searchId`
+* **Purpose:** Create a background job to enrich all leads belonging to a specific search job ID (up to 500 max).
+* **Headers:** `x-api-key: sk_live_...` or `Authorization: Bearer <token>`, `Content-Type: application/json`
+* **Request Body:**
+  ```json
+  {
+    "force": false
+  }
+  ```
+* **Curl Command:**
+  ```bash
+  curl -s -X POST http://localhost:3000/enrich/search/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d \
+    -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..." \
+    -H "Content-Type: application/json" \
+    -d '{"force": false}'
+  ```
+* **Expected Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "jobId": "5c9e2b10-6ee7-41ab-8012-9c17be9f80a2",
+    "totalLeads": 12
+  }
+  ```
+
+### Retrieve Enrichment Progress
+* **Route:** `GET /enrich/:jobId`
+* **Purpose:** Retrieve details and real-time step statistics for a manual enrichment job.
+* **Headers:** `x-api-key: sk_live_...` or `Authorization: Bearer <token>`
+* **Curl Command:**
+  ```bash
+  curl -s -X GET http://localhost:3000/enrich/5c9e2b10-6ee7-41ab-8012-9c17be9f80a2 \
+    -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..."
+  ```
+* **Expected Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "id": "5c9e2b10-6ee7-41ab-8012-9c17be9f80a2",
+    "status": "running",
+    "progress": 65,
+    "totalLeads": 20,
+    "completedLeads": 13,
+    "failedLeads": 1,
+    "remainingLeads": 6,
+    "currentlyProcessing": 2,
+    "createdAt": "2026-06-23T11:42:00.000Z",
+    "startedAt": "2026-06-23T11:42:02.000Z",
+    "completedAt": null
+  }
+  ```
+
+### Cancel Enrichment Job
+* **Route:** `DELETE /enrich/:jobId`
+* **Purpose:** Cancel a pending or running enrichment job.
+* **Headers:** `x-api-key: sk_live_...` or `Authorization: Bearer <token>`
+* **Curl Command:**
+  ```bash
+  curl -s -X DELETE http://localhost:3000/enrich/5c9e2b10-6ee7-41ab-8012-9c17be9f80a2 \
+    -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..."
+  ```
+* **Expected Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "message": "Enrichment job cancelled"
   }
   ```
 
@@ -384,3 +519,5 @@ Returned if the UUID doesn't match any search record or is owned by another user
     "message": "Search not found"
   }
   ```
+
+

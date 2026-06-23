@@ -80,6 +80,8 @@ export const leads = pgTable("leads", {
   twitter: text("twitter"),
   enrichmentStatus: text("enrichment_status").default("pending"),
   websiteLastChecked: timestamp("website_last_checked"),
+  emailSource: text("email_source"),
+  socialSource: text("social_source"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => [
   index("search_id_idx").on(table.searchId),
@@ -87,6 +89,21 @@ export const leads = pgTable("leads", {
   index("phone_idx").on(table.phone),
   index("email_idx").on(table.email),
 ]);
+
+export const enrichmentJobs = pgTable("enrichment_jobs", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  userId: uuid("user_id")
+    .references(() => users.id, { onDelete: "cascade" })
+    .notNull(),
+  status: text("status").notNull().default("pending"), // pending, running, completed, failed, cancelled
+  progress: integer("progress").default(0),
+  totalLeads: integer("total_leads").default(0),
+  completedLeads: integer("completed_leads").default(0),
+  failedLeads: integer("failed_leads").default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  startedAt: timestamp("started_at"),
+  completedAt: timestamp("completed_at"),
+});
 
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
@@ -98,4 +115,6 @@ export type Search = typeof searches.$inferSelect;
 export type NewSearch = typeof searches.$inferInsert;
 export type Lead = typeof leads.$inferSelect;
 export type NewLead = typeof leads.$inferInsert;
+export type EnrichmentJob = typeof enrichmentJobs.$inferSelect;
+export type NewEnrichmentJob = typeof enrichmentJobs.$inferInsert;
 

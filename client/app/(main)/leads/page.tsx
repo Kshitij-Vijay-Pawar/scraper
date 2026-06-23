@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useStore, Lead, SearchJob } from "../../../store/useStore";
 import {
   Users,
@@ -23,6 +24,7 @@ import {
 import ApiLogsConsole from "../../../components/ApiLogsConsole";
 
 export default function LeadsPage() {
+  const router = useRouter();
   const {
     leads,
     searches,
@@ -231,7 +233,11 @@ export default function LeadsPage() {
               </thead>
               <tbody className="divide-y divide-zinc-800 text-zinc-300">
                 {paginatedLeads.map((lead) => (
-                  <tr key={lead.id} className="hover:bg-zinc-900/10 transition-colors">
+                  <tr
+                    key={lead.id}
+                    className="hover:bg-zinc-900/20 transition-colors cursor-pointer"
+                    onClick={() => router.push(`/leads/${lead.id}`)}
+                  >
                     <td className="px-6 py-4 font-semibold text-zinc-200">
                       {lead.name}
                     </td>
@@ -243,7 +249,7 @@ export default function LeadsPage() {
                           <span className="text-zinc-500 text-[10px]">({lead.reviews || 0})</span>
                         </div>
                       ) : (
-                        <span className="text-zinc-650">—</span>
+                        <span className="text-zinc-655">—</span>
                       )}
                     </td>
                     <td className="px-6 py-4">
@@ -252,7 +258,10 @@ export default function LeadsPage() {
                           <Mail className="h-3.5 w-3.5 text-zinc-500" />
                           <span className="truncate max-w-[150px]" title={lead.email}>{lead.email}</span>
                           <button
-                            onClick={() => handleCopy(lead.email!)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopy(lead.email!);
+                            }}
                             className="p-1 rounded hover:bg-zinc-800 text-zinc-500 hover:text-white transition-colors cursor-pointer"
                           >
                             {copiedText === lead.email ? (
@@ -282,6 +291,7 @@ export default function LeadsPage() {
                           href={lead.website}
                           target="_blank"
                           rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
                           className="flex items-center gap-1 text-violet-400 hover:text-violet-300 transition-colors"
                         >
                           <Globe className="h-3.5 w-3.5" />
@@ -298,6 +308,7 @@ export default function LeadsPage() {
                           href={lead.facebook}
                           target="_blank"
                           rel="noreferrer"
+                          onClick={(e) => e.stopPropagation()}
                           className="text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-all font-semibold inline-flex items-center gap-1"
                         >
                           Facebook
