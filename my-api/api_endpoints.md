@@ -4,9 +4,163 @@ This document provides a detailed list of every API endpoint available in the ap
 
 ---
 
-## 1. Public Endpoints
+## 1. Public Authentication Endpoints
 
-These endpoints do not require status verification and are accessible publicly.
+These endpoints are used to manage user registrations, logins, and retrieve session profiles.
+
+### Register User
+* **Route:** `POST /auth/register`
+* **Purpose:** Register a new developer account.
+* **Headers:** `Content-Type: application/json`
+* **Request Body:**
+  ```json
+  {
+    "name": "John Doe",
+    "email": "john@example.com",
+    "password": "password123"
+  }
+  ```
+* **Curl Command:**
+  ```bash
+  curl -s -X POST http://localhost:3000/auth/register \
+    -H "Content-Type: application/json" \
+    -d '{"name": "John Doe", "email": "john@example.com", "password": "password123"}'
+  ```
+* **Expected Response (201 Created):**
+  ```json
+  {
+    "success": true,
+    "message": "User created",
+    "user": {
+      "id": "7acfa957-7a2e-4b2e-a74b-2f08a9f0291a",
+      "name": "John Doe",
+      "email": "john@example.com"
+    }
+  }
+  ```
+
+### User Login
+* **Route:** `POST /auth/login`
+* **Purpose:** Log in to retrieve a JWT Bearer token for Dashboard calls.
+* **Headers:** `Content-Type: application/json`
+* **Request Body:**
+  ```json
+  {
+    "email": "john@example.com",
+    "password": "password123"
+  }
+  ```
+* **Curl Command:**
+  ```bash
+  curl -s -X POST http://localhost:3000/auth/login \
+    -H "Content-Type: application/json" \
+    -d '{"email": "john@example.com", "password": "password123"}'
+  ```
+* **Expected Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  }
+  ```
+
+### Current User Profile
+* **Route:** `GET /auth/me`
+* **Purpose:** Retrieve the profile of the currently logged-in user.
+* **Headers:** `Authorization: Bearer <jwt_token>`
+* **Curl Command:**
+  ```bash
+  curl -s -X GET http://localhost:3000/auth/me \
+    -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  ```
+* **Expected Response (200 OK):**
+  ```json
+  {
+    "id": "7acfa957-7a2e-4b2e-a74b-2f08a9f0291a",
+    "name": "John Doe",
+    "email": "john@example.com"
+  }
+  ```
+
+---
+
+## 2. API Key Management (JWT Protected)
+
+These endpoints require a JWT Bearer token and are used by developers to create, list, and revoke API keys.
+
+### Create API Key
+* **Route:** `POST /api-keys`
+* **Purpose:** Generate a new API key. The raw key is returned exactly once.
+* **Headers:** `Authorization: Bearer <jwt_token>`, `Content-Type: application/json`
+* **Request Body:**
+  ```json
+  {
+    "name": "Production App"
+  }
+  ```
+* **Curl Command:**
+  ```bash
+  curl -s -X POST http://localhost:3000/api-keys \
+    -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
+    -H "Content-Type: application/json" \
+    -d '{"name": "Production App"}'
+  ```
+* **Expected Response (201 Created):**
+  ```json
+  {
+    "success": true,
+    "apiKey": "sk_live_2a7cf89c7d42e6a7c8..."
+  }
+  ```
+
+### List API Keys
+* **Route:** `GET /api-keys`
+* **Purpose:** List all active API keys along with prefixes and usage stats. Hashes are never exposed.
+* **Headers:** `Authorization: Bearer <jwt_token>`
+* **Curl Command:**
+  ```bash
+  curl -s -X GET http://localhost:3000/api-keys \
+    -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  ```
+* **Expected Response (200 OK):**
+  ```json
+  [
+    {
+      "id": "1b392a83-a74b-4b2e-a9b0-9a291f08bfcd",
+      "name": "Production App",
+      "prefix": "sk_live_2a7c",
+      "lastUsedAt": "2026-06-22T08:12:00.000Z",
+      "lastSearchAt": "2026-06-22T08:10:00.000Z",
+      "totalSearches": 15,
+      "totalLeadsScraped": 243,
+      "requestsToday": 45,
+      "lastRequestAt": "2026-06-22T08:12:00.000Z",
+      "isActive": true,
+      "createdAt": "2026-06-21T10:00:00.000Z"
+    }
+  ]
+  ```
+
+### Revoke API Key
+* **Route:** `DELETE /api-keys/:id`
+* **Purpose:** Permanently revoke (deactivate) an API key.
+* **Headers:** `Authorization: Bearer <jwt_token>`
+* **Curl Command:**
+  ```bash
+  curl -s -X DELETE http://localhost:3000/api-keys/1b392a83-a74b-4b2e-a9b0-9a291f08bfcd \
+    -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+  ```
+* **Expected Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "message": "API key revoked successfully"
+  }
+  ```
+
+---
+
+## 3. Public Health Endpoints
 
 ### Health Check
 * **Route:** `GET /public/health`
@@ -23,31 +177,46 @@ These endpoints do not require status verification and are accessible publicly.
   }
   ```
 
-### Public Info
-* **Route:** `GET /public/info`
-* **Purpose:** Fetch public system info/status.
+---
+
+## 4. Protected Scraper & Lead Endpoints
+
+These endpoints require authentication. You must provide EITHER a JWT Bearer token in the `Authorization` header OR an API Key (via `x-api-key` header or Bearer token starting with `sk_live_`).
+
+### List Search Jobs
+* **Route:** `GET /searches`
+* **Purpose:** Retrieve all search jobs belonging to the authenticated user.
+* **Headers:** `x-api-key: sk_live_...` or `Authorization: Bearer <token>`
 * **Curl Command:**
   ```bash
-  curl -s -X GET http://localhost:3000/public/info
+  curl -s -X GET http://localhost:3000/searches \
+    -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..."
   ```
 * **Expected Response (200 OK):**
   ```json
   {
     "success": true,
-    "message": "This endpoint is public and bypasses the check middleware."
+    "searches": [
+      {
+        "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+        "userId": "7acfa957-7a2e-4b2e-a74b-2f08a9f0291a",
+        "apiKeyId": "1b392a83-a74b-4b2e-a9b0-9a291f08bfcd",
+        "keyword": "dentist",
+        "location": "Miami",
+        "status": "completed",
+        "totalLeads": 12,
+        "scrapedCount": 12,
+        "progress": 100,
+        "createdAt": "2026-06-22T04:36:20.000Z"
+      }
+    ]
   }
   ```
-
----
-
-## 2. Protected Scraper & Lead Endpoints
-
-These endpoints are protected under the system validation middleware.
 
 ### Start Search & Scrape
 * **Route:** `POST /search`
 * **Purpose:** Initialize a Google Maps search and scrape leads.
-* **Headers:** `Content-Type: application/json`
+* **Headers:** `x-api-key: sk_live_...` or `Authorization: Bearer <token>`, `Content-Type: application/json`
 * **Request Body:**
   ```json
   {
@@ -58,6 +227,7 @@ These endpoints are protected under the system validation middleware.
 * **Curl Command:**
   ```bash
   curl -s -X POST http://localhost:3000/search \
+    -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..." \
     -H "Content-Type: application/json" \
     -d '{"keyword": "dentist", "location": "Miami"}'
   ```
@@ -66,16 +236,19 @@ These endpoints are protected under the system validation middleware.
   {
     "success": true,
     "searchId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
-    "count": 12
+    "jobId": "12",
+    "status": "pending"
   }
   ```
 
-### Retrieve Search Status and Leads
+### Retrieve Search Status
 * **Route:** `GET /search/:id`
-* **Purpose:** Retrieve the progress status and all lead records associated with a specific search job ID.
+* **Purpose:** Retrieve the progress/status of a specific search job ID.
+* **Headers:** `x-api-key: sk_live_...`
 * **Curl Command:**
   ```bash
-  curl -s -X GET http://localhost:3000/search/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d
+  curl -s -X GET http://localhost:3000/search/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d \
+    -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..."
   ```
 * **Expected Response (200 OK):**
   ```json
@@ -83,12 +256,35 @@ These endpoints are protected under the system validation middleware.
     "success": true,
     "search": {
       "id": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+      "userId": "7acfa957-7a2e-4b2e-a74b-2f08a9f0291a",
+      "apiKeyId": "1b392a83-a74b-4b2e-a9b0-9a291f08bfcd",
       "keyword": "dentist",
       "location": "Miami",
       "status": "completed",
       "totalLeads": 12,
+      "scrapedCount": 12,
+      "insertedCount": 12,
+      "duplicateCount": 0,
+      "progress": 100,
       "createdAt": "2026-06-22T04:36:20.000Z"
-    },
+    }
+  }
+  ```
+
+### Retrieve Search Results
+* **Route:** `GET /search/:id/results`
+* **Purpose:** Retrieve the lead results of a completed search job.
+* **Headers:** `x-api-key: sk_live_...`
+* **Curl Command:**
+  ```bash
+  curl -s -X GET http://localhost:3000/search/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d/results \
+    -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..."
+  ```
+* **Expected Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "searchId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
     "leads": [
       {
         "id": "3b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6e",
@@ -101,6 +297,7 @@ These endpoints are protected under the system validation middleware.
         "rating": 4.7,
         "reviews": 85,
         "facebook": "https://facebook.com/miamidental",
+        "enrichmentStatus": "completed",
         ...
       }
     ]
@@ -109,10 +306,12 @@ These endpoints are protected under the system validation middleware.
 
 ### Retrieve All Leads
 * **Route:** `GET /leads`
-* **Purpose:** Fetch every scraped lead record stored globally in the database.
+* **Purpose:** Fetch every lead record belonging to the authenticated user's searches.
+* **Headers:** `x-api-key: sk_live_...`
 * **Curl Command:**
   ```bash
-  curl -s -X GET http://localhost:3000/leads
+  curl -s -X GET http://localhost:3000/leads \
+    -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..."
   ```
 * **Expected Response (200 OK):**
   ```json
@@ -122,19 +321,159 @@ These endpoints are protected under the system validation middleware.
     "leads": [...]
   }
   ```
+### Retrieve Single Lead
+* **Route:** `GET /leads/:id`
+* **Purpose:** Retrieve the full profile, reviews, coordinates, socials, and alternative email list of a single lead by ID, with keyword/location search context.
+* **Headers:** `x-api-key: sk_live_...` or `Authorization: Bearer <token>`
+* **Curl Command:**
+  ```bash
+  curl -s -X GET http://localhost:3000/leads/7d4e4551-39e3-41b7-9b1d-2c6fa80a983e \
+    -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..."
+  ```
+* **Expected Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "lead": {
+      "id": "7d4e4551-39e3-41b7-9b1d-2c6fa80a983e",
+      "searchId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+      "name": "Miami Dental Care",
+      "phone": "+13055550199",
+      "website": "https://miamidental.com",
+      "address": "123 Main St, Miami, FL",
+      "rating": 4.7,
+      "reviews": 85,
+      "latitude": 25.7617,
+      "longitude": -80.1918,
+      "email": "info@miamidental.com",
+      "emails": ["info@miamidental.com", "billing@miamidental.com"],
+      "facebook": "https://facebook.com/miamidental",
+      "instagram": null,
+      "linkedin": null,
+      "twitter": null,
+      "enrichmentStatus": "completed",
+      "websiteLastChecked": "2026-06-23T11:40:00.000Z",
+      "emailSource": "website",
+      "socialSource": "website",
+      "createdAt": "2026-06-22T04:36:20.000Z",
+      "searchKeyword": "dentist",
+      "searchLocation": "Miami"
+    }
+  }
+  ```
+
+### Enrich Specific Leads
+* **Route:** `POST /enrich/leads`
+* **Purpose:** Create a manual background job to enrich specific leads by their IDs.
+* **Headers:** `x-api-key: sk_live_...` or `Authorization: Bearer <token>`, `Content-Type: application/json`
+* **Request Body:**
+  ```json
+  {
+    "leadIds": ["7d4e4551-39e3-41b7-9b1d-2c6fa80a983e"],
+    "force": false
+  }
+  ```
+  *(Set `force: true` to bypass the already-enriched protection and re-enrich leads)*
+* **Curl Command:**
+  ```bash
+  curl -s -X POST http://localhost:3000/enrich/leads \
+    -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..." \
+    -H "Content-Type: application/json" \
+    -d '{"leadIds": ["7d4e4551-39e3-41b7-9b1d-2c6fa80a983e"], "force": false}'
+  ```
+* **Expected Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "jobId": "5c9e2b10-6ee7-41ab-8012-9c17be9f80a2",
+    "totalLeads": 1
+  }
+  ```
+
+### Enrich All Leads in a Search
+* **Route:** `POST /enrich/search/:searchId`
+* **Purpose:** Create a background job to enrich all leads belonging to a specific search job ID (up to 500 max).
+* **Headers:** `x-api-key: sk_live_...` or `Authorization: Bearer <token>`, `Content-Type: application/json`
+* **Request Body:**
+  ```json
+  {
+    "force": false
+  }
+  ```
+* **Curl Command:**
+  ```bash
+  curl -s -X POST http://localhost:3000/enrich/search/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d \
+    -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..." \
+    -H "Content-Type: application/json" \
+    -d '{"force": false}'
+  ```
+* **Expected Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "jobId": "5c9e2b10-6ee7-41ab-8012-9c17be9f80a2",
+    "totalLeads": 12
+  }
+  ```
+
+### Retrieve Enrichment Progress
+* **Route:** `GET /enrich/:jobId`
+* **Purpose:** Retrieve details and real-time step statistics for a manual enrichment job.
+* **Headers:** `x-api-key: sk_live_...` or `Authorization: Bearer <token>`
+* **Curl Command:**
+  ```bash
+  curl -s -X GET http://localhost:3000/enrich/5c9e2b10-6ee7-41ab-8012-9c17be9f80a2 \
+    -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..."
+  ```
+* **Expected Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "id": "5c9e2b10-6ee7-41ab-8012-9c17be9f80a2",
+    "status": "running",
+    "progress": 65,
+    "totalLeads": 20,
+    "completedLeads": 13,
+    "failedLeads": 1,
+    "remainingLeads": 6,
+    "currentlyProcessing": 2,
+    "createdAt": "2026-06-23T11:42:00.000Z",
+    "startedAt": "2026-06-23T11:42:02.000Z",
+    "completedAt": null
+  }
+  ```
+
+### Cancel Enrichment Job
+* **Route:** `DELETE /enrich/:jobId`
+* **Purpose:** Cancel a pending or running enrichment job.
+* **Headers:** `x-api-key: sk_live_...` or `Authorization: Bearer <token>`
+* **Curl Command:**
+  ```bash
+  curl -s -X DELETE http://localhost:3000/enrich/5c9e2b10-6ee7-41ab-8012-9c17be9f80a2 \
+    -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..."
+  ```
+* **Expected Response (200 OK):**
+  ```json
+  {
+    "success": true,
+    "message": "Enrichment job cancelled"
+  }
+  ```
 
 ---
 
-## 3. Lead Data Export Endpoints
+## 5. Lead Data Export Endpoints
 
-Allows users to download formatted spreadsheets of search results.
+Allows users to download formatted spreadsheets of search results they own.
 
 ### Export Leads to CSV
 * **Route:** `GET /export/csv/:searchId`
 * **Purpose:** Download all leads for a search job in dynamically escaped CSV format.
+* **Headers:** `x-api-key: sk_live_...` or `Authorization: Bearer <token>`
 * **Curl Command:**
   ```bash
-  curl -J -O -L http://localhost:3000/export/csv/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d
+  curl -J -O -L http://localhost:3000/export/csv/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d \
+    -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..."
   ```
   *(Using `-J -O -L` flags will automatically write the downloaded data to a file named `leads.csv` as specified by the server's headers)*
 * **Expected Headers:**
@@ -144,9 +483,11 @@ Allows users to download formatted spreadsheets of search results.
 ### Export Leads to Excel (XLSX)
 * **Route:** `GET /export/excel/:searchId`
 * **Purpose:** Download leads formatted inside a workbook worksheet named `Leads`.
+* **Headers:** `x-api-key: sk_live_...` or `Authorization: Bearer <token>`
 * **Curl Command:**
   ```bash
-  curl -J -O -L http://localhost:3000/export/excel/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d
+  curl -J -O -L http://localhost:3000/export/excel/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d \
+    -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..."
   ```
   *(Using `-J -O -L` flags will automatically write the downloaded data to a file named `leads.xlsx` as specified by the server's headers)*
 * **Expected Headers:**
@@ -155,37 +496,27 @@ Allows users to download formatted spreadsheets of search results.
 
 ---
 
-## 4. Error Responses
+## 6. Error Responses
 
 The following standardized formats are returned in case of errors.
 
-### Search Not Found (404 Not Found)
-Returned by `/export/csv/:searchId`, `/export/excel/:searchId` or `/search/:id` if the UUID doesn't match any search record.
+### Unauthorized / Invalid Token / Revoked Key (401 Unauthorized)
+* **Response Body:**
+  ```json
+  {
+    "success": false,
+    "error": "Unauthorized",
+    "message": "Missing or invalid API key"
+  }
+  ```
+
+### Search Not Found / Access Denied (404 Not Found)
+Returned if the UUID doesn't match any search record or is owned by another user.
 * **Response Body:**
   ```json
   {
     "success": false,
     "message": "Search not found"
-  }
-  ```
-
-### No Leads Found (404 Not Found)
-Returned by export endpoints if the search exists but has no leads attached.
-* **Response Body:**
-  ```json
-  {
-    "success": false,
-    "message": "No leads found"
-  }
-  ```
-
-### Export Failure (500 Internal Server Error)
-Returned when an internal service error happens during file assembly.
-* **Response Body:**
-  ```json
-  {
-    "success": false,
-    "message": "Export failed"
   }
   ```
 

@@ -8,9 +8,10 @@ import { NewLead } from "../db/schema";
 export const searchGoogleMaps = async (
   searchId: string,
   keyword: string,
-  location: string
+  location: string,
+  limit: number = 50
 ): Promise<NewLead[]> => {
-  console.log(`Starting scraper for search ${searchId} (${keyword} in ${location})...`);
+  console.log(`Starting scraper for search ${searchId} (${keyword} in ${location}, limit: ${limit})...`);
   
   const browser = await chromium.launch({
     headless: true,
@@ -115,7 +116,7 @@ export const searchGoogleMaps = async (
     console.log(`Found ${uniqueUrls.length} unique places to scrape.`);
 
     // Go to each place details page and extract information
-    for (const url of uniqueUrls.slice(0, 50)) { // Limit to top 50 results
+    for (const url of uniqueUrls.slice(0, limit)) { // Limit to requested count
       try {
         console.log(`Scraping place URL: ${url}`);
         await page.goto(url, { waitUntil: "domcontentloaded" });

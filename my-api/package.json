@@ -4,9 +4,11 @@
   "type": "module",
   "private": true,
   "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
     "@types/bun": "latest",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^26.0.0",
     "drizzle-kit": "^0.31.10",
     "tsx": "^4.22.4"
@@ -17,12 +19,14 @@
   "scripts": {
     "dev": "bun --watch src/index.ts",
     "worker": "bun --watch src/workers/search.worker.ts",
+    "worker:enrichment": "bun --watch src/workers/enrichment.worker.ts",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
     "axios": "^1.18.0",
+    "bcrypt": "^6.0.0",
     "bullmq": "^5.79.1",
     "cheerio": "^1.2.0",
     "cors": "^2.8.6",
@@ -30,6 +34,7 @@
     "drizzle-orm": "^0.45.2",
     "express": "^5.2.1",
     "ioredis": "^5.11.1",
+    "jsonwebtoken": "^9.0.3",
     "playwright": "^1.61.0",
     "postgres": "^3.4.9",
     "xlsx": "^0.18.5",

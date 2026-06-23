@@ -1,9 +1,37 @@
 import { Router, Request, Response } from "express";
 import { ExportService, SearchNotFoundError, NoLeadsFoundError } from "../../services/export.service";
+import { authOrApiKeyMiddleware } from "../../middleware/authOrApiKey";
+import { db } from "../../db";
+import { searches } from "../../db/schema";
+import { eq, and } from "drizzle-orm";
 
 const router = Router();
+router.use(authOrApiKeyMiddleware);
 
-router.get("/csv/:searchId", async (req: Request, res: Response): Promise<void> => {
+// Middleware to verify search ownership before export
+const checkSearchOwnership = async (req: Request, res: Response, next: any): Promise<void> => {
+  const { searchId } = req.params;
+  const userId = req.user!.id;
+
+  try {
+    const searchRecords = await db
+      .select()
+      .from(searches)
+      .where(and(eq(searches.id, searchId), eq(searches.userId, userId)))
+      .limit(1);
+
+    if (searchRecords.length === 0) {
+      res.status(404).json({ success: false, message: "Search not found" });
+      return;
+    }
+    next();
+  } catch (error) {
+    console.error("Error checking search ownership for export:", error);
+    res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+router.get("/csv/:searchId", checkSearchOwnership, async (req: Request, res: Response): Promise<void> => {
   const { searchId } = req.params;
   try {
     const csvContent = await ExportService.exportToCsv(searchId);
@@ -22,7 +50,7 @@ router.get("/csv/:searchId", async (req: Request, res: Response): Promise<void> 
   }
 });
 
-router.get("/excel/:searchId", async (req: Request, res: Response): Promise<void> => {
+router.get("/excel/:searchId", checkSearchOwnership, async (req: Request, res: Response): Promise<void> => {
   const { searchId } = req.params;
   try {
     const buffer = await ExportService.exportToExcel(searchId);

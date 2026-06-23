@@ -44,5 +44,21 @@ services:
       - redis
     restart: always
 
+  # Background enrichment worker container
+  enrichment-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mcfly-enrichment-worker
+    command: bun run src/workers/enrichment.worker.ts
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=${DATABASE_URL}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - redis
+    restart: always
+
 volumes:
   redis_data:

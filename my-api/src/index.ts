@@ -2,7 +2,10 @@ import express from "express";
 import cors from "cors";
 import { checkStatusMiddleware } from "./middleware/checkStatus";
 import googleMapsRouter from "./api/routes/googleMapsScraper";
+import enrichmentRouter from "./api/routes/enrichment.routes";
 import exportRouter from "./api/routes/export.routes";
+import authRouter from "./api/routes/auth.routes";
+import apiKeyRouter from "./api/routes/apiKey.routes";
 
 const app = express();
 
@@ -38,7 +41,10 @@ app.use("/public", publicRouter);
 app.use(checkStatusMiddleware);
 
 // --- SECTION 3: Protected Routes (Require validation endpoint to assess to true) ---
+app.use("/auth", authRouter);
+app.use("/api-keys", apiKeyRouter);
 app.use("/", googleMapsRouter);
+app.use("/", enrichmentRouter);
 app.use("/export", exportRouter);
 
 
@@ -60,6 +66,7 @@ app.get("/users", (_, res) => {
 });
 
 import { searchQueue } from "./queue/search.queue";
+import { enrichmentQueue } from "./queue/enrichment.queue";
 import { redisConnection } from "./queue/redis";
 
 const server = app.listen(3000, () => {
@@ -72,8 +79,9 @@ async function shutdown() {
   server.close(async () => {
     try {
       await searchQueue.close();
+      await enrichmentQueue.close();
       await redisConnection.disconnect();
-      console.log("Express server, Queue, and Redis connections closed successfully.");
+      console.log("Express server, Queues, and Redis connections closed successfully.");
       process.exit(0);
     } catch (error) {
       console.error("Error during graceful shutdown:", error);

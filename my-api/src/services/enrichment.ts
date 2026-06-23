@@ -44,6 +44,10 @@ function isValidEmail(email: string): boolean {
 }
 
 // Enrich a single lead by crawling its website
+// DATA PRIORITY RULES:
+// 1. Google Maps data is the primary source of truth (highest priority).
+// 2. Website enrichment may only fill fields that are currently null.
+// 3. Never overwrite existing non-null Google Maps values.
 export async function enrichSingleLead(leadId: string, rawWebsite: string): Promise<void> {
   const websiteUrl = normalizeUrl(rawWebsite);
   if (!websiteUrl) {
@@ -62,6 +66,10 @@ export async function enrichSingleLead(leadId: string, rawWebsite: string): Prom
   let linkedin: string | null = null;
   let twitter: string | null = null;
 
+  // Track which page provided the data
+  let emailSource: string | null = null;
+  let socialSource: string | null = null;
+
   const client = axios.create({
     timeout: 8000,
     headers: {
@@ -71,26 +79,24 @@ export async function enrichSingleLead(leadId: string, rawWebsite: string): Prom
     validateStatus: () => true, // Don't throw errors for 4xx/5xx pages to extract content
   });
 
-  try {
-    // 1. Visit homepage
-    const response = await client.get(websiteUrl);
-    if (response.status >= 400 && response.status !== 404) {
-      // If we got a connection error or severe server failure, mark as failed
-      throw new Error(`HTTP Error ${response.status}`);
-    }
+  // Helper to identify page type from URL for source tracking
+  function getPageType(pageUrl: string): string {
+    const lower = pageUrl.toLowerCase();
+    if (/\b(contact)\b/i.test(lower)) return "contact";
+    if (/\b(about)\b/i.test(lower)) return "about";
+    if (/\b(team)\b/i.test(lower)) return "team";
+    if (/\b(support)\b/i.test(lower)) return "support";
+    return "homepage";
+  }
 
-    const html = response.data;
-    if (typeof html !== "string") {
-      throw new Error("Invalid response format");
-    }
-
-    const $ = cheerio.load(html);
-
+  // Helper to extract emails and socials from a cheerio document
+  function extractFromPage($: cheerio.CheerioAPI, pageType: string) {
     // Extract emails from mailto anchors
     $('a[href^="mailto:"]').each((_, element) => {
       const href = $(element).attr("href") || "";
       const email = href.replace(/mailto:/i, "").split("?")[0]?.trim();
       if (email && isValidEmail(email)) {
+        if (scrapedEmails.size === 0) emailSource = pageType;
         scrapedEmails.add(email);
       }
     });
@@ -102,6 +108,7 @@ export async function enrichSingleLead(leadId: string, rawWebsite: string): Prom
     if (bodyMatches) {
       bodyMatches.forEach(email => {
         if (isValidEmail(email)) {
+          if (scrapedEmails.size === 0) emailSource = pageType;
           scrapedEmails.add(email);
         }
       });
@@ -113,15 +120,35 @@ export async function enrichSingleLead(leadId: string, rawWebsite: string): Prom
       if (!href) return;
 
       if (/facebook\.com\/(?!sharer|plugins|groups)/i.test(href)) {
-        facebook = href;
+        if (!facebook) socialSource = pageType;
+        facebook = facebook || href;
       } else if (/instagram\.com\//i.test(href)) {
-        instagram = href;
+        if (!instagram && !socialSource) socialSource = pageType;
+        instagram = instagram || href;
       } else if (/linkedin\.com\/(?!share|company\/[^/]+\/shared)/i.test(href)) {
-        linkedin = href;
+        if (!linkedin && !socialSource) socialSource = pageType;
+        linkedin = linkedin || href;
       } else if (/(twitter\.com|x\.com)\//i.test(href)) {
-        twitter = href;
+        if (!twitter && !socialSource) socialSource = pageType;
+        twitter = twitter || href;
       }
     });
+  }
+
+  try {
+    // 1. Visit homepage
+    const response = await client.get(websiteUrl);
+    if (response.status >= 400 && response.status !== 404) {
+      throw new Error(`HTTP Error ${response.status}`);
+    }
+
+    const html = response.data;
+    if (typeof html !== "string") {
+      throw new Error("Invalid response format");
+    }
+
+    const $ = cheerio.load(html);
+    extractFromPage($, "homepage");
 
     // 2. Discover subpages (e.g. contact, about)
     const subpagesToVisit = new Set<string>();
@@ -135,7 +162,6 @@ export async function enrichSingleLead(leadId: string, rawWebsite: string): Prom
       if (contactOrAbout) {
         try {
           const resolvedUrl = new URL(href, websiteUrl);
-          // Only scrape internal links
           if (resolvedUrl.origin === domain && resolvedUrl.href !== websiteUrl) {
             subpagesToVisit.add(resolvedUrl.href);
           }
@@ -154,25 +180,8 @@ export async function enrichSingleLead(leadId: string, rawWebsite: string): Prom
         const subHtml = subResponse.data;
         if (typeof subHtml === "string") {
           const sub$ = cheerio.load(subHtml);
-
-          // Extract mailto links
-          sub$('a[href^="mailto:"]').each((_, elem) => {
-            const href = sub$(elem).attr("href") || "";
-            const email = href.replace(/mailto:/i, "").split("?")[0]?.trim();
-            if (email && isValidEmail(email)) {
-              scrapedEmails.add(email);
-            }
-          });
-
-          // Extract regex matches
-          const subMatches = sub$("body").text().match(emailRegex);
-          if (subMatches) {
-            subMatches.forEach(email => {
-              if (isValidEmail(email)) {
-                scrapedEmails.add(email);
-              }
-            });
-          }
+          const pageType = getPageType(pageUrl);
+          extractFromPage(sub$, pageType);
         }
       } catch (subErr) {
         console.warn(`Failed to crawl subpage ${pageUrl}:`, subErr);
@@ -182,18 +191,49 @@ export async function enrichSingleLead(leadId: string, rawWebsite: string): Prom
     const allEmails = Array.from(scrapedEmails);
     const primaryEmail = selectPrimaryEmail(allEmails);
 
+    // 3. Enforce Data Priority Rules:
+    // Fetch existing lead to check which fields are already populated from Google Maps.
+    // Only populate fields that are currently null.
+    const existingLeadRecords = await db.select()
+      .from(leads)
+      .where(eq(leads.id, leadId))
+      .limit(1);
+    const existingLead = existingLeadRecords[0];
+
+    const updateData: Record<string, any> = {
+      enrichmentStatus: "completed",
+      websiteLastChecked: new Date(),
+    };
+
+    // Only fill null fields — never overwrite Google Maps data
+    if (existingLead) {
+      if (existingLead.email === null && primaryEmail) {
+        updateData.email = primaryEmail;
+      }
+      if (existingLead.emails === null || (Array.isArray(existingLead.emails) && existingLead.emails.length === 0)) {
+        if (allEmails.length > 0) updateData.emails = allEmails;
+      }
+      if (existingLead.facebook === null && facebook) updateData.facebook = facebook;
+      if (existingLead.instagram === null && instagram) updateData.instagram = instagram;
+      if (existingLead.linkedin === null && linkedin) updateData.linkedin = linkedin;
+      if (existingLead.twitter === null && twitter) updateData.twitter = twitter;
+    } else {
+      // Lead doesn't exist (shouldn't happen), set all fields
+      if (primaryEmail) updateData.email = primaryEmail;
+      if (allEmails.length > 0) updateData.emails = allEmails;
+      if (facebook) updateData.facebook = facebook;
+      if (instagram) updateData.instagram = instagram;
+      if (linkedin) updateData.linkedin = linkedin;
+      if (twitter) updateData.twitter = twitter;
+    }
+
+    // Track enrichment source
+    if (emailSource) updateData.emailSource = emailSource;
+    if (socialSource) updateData.socialSource = socialSource;
+
     // Save enrichment results to DB
     await db.update(leads)
-      .set({
-        email: primaryEmail,
-        emails: allEmails,
-        facebook,
-        instagram,
-        linkedin,
-        twitter,
-        enrichmentStatus: "completed",
-        websiteLastChecked: new Date(),
-      })
+      .set(updateData)
       .where(eq(leads.id, leadId));
 
   } catch (error: any) {
@@ -207,19 +247,3 @@ export async function enrichSingleLead(leadId: string, rawWebsite: string): Prom
   }
 }
 
-// Bulk enrich a list of leads in batches of 5
-export async function enrichLeads(leadsList: { id: string; website: string | null }[]): Promise<void> {
-  const targetLeads = leadsList.filter(l => l.website);
-  console.log(`Starting enrichment for ${targetLeads.length} leads in batches of 5...`);
-
-  const batchSize = 5;
-  for (let i = 0; i < targetLeads.length; i += batchSize) {
-    const batch = targetLeads.slice(i, i + batchSize);
-    console.log(`Processing batch ${i / batchSize + 1} of ${Math.ceil(targetLeads.length / batchSize)}...`);
-    
-    await Promise.all(
-      batch.map(lead => enrichSingleLead(lead.id, lead.website!))
-    );
-  }
-  console.log("Enrichment completed.");
-}
