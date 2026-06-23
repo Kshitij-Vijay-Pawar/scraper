@@ -4,7 +4,7 @@ services:
   # Redis instance for BullMQ queue management
   redis:
     image: redis:7-alpine
-    container_name: mcfly-redis
+    container_name: scraper-redis
     ports:
       - "6379:6379"
     volumes:
@@ -16,7 +16,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: mcfly-api
+    container_name: scraper-api
     ports:
       - "3000:3000"
     environment:
@@ -33,7 +33,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: mcfly-worker
+    container_name: scraper-worker
     command: bun run src/workers/search.worker.ts
     environment:
       - NODE_ENV=production
@@ -49,7 +49,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: mcfly-enrichment-worker
+    container_name: scraper-enrichment-worker
     command: bun run src/workers/enrichment.worker.ts
     environment:
       - NODE_ENV=production
