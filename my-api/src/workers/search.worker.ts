@@ -1,7 +1,7 @@
 import { Worker, Job } from "bullmq";
 import { db } from "../db";
-import { searches, leads } from "../db/schema";
-import { eq } from "drizzle-orm";
+import { searches, leads, apiKeys } from "../db/schema";
+import { eq, sql } from "drizzle-orm";
 import { redisConnection } from "../queue/redis";
 import { SEARCH_QUEUE, SearchJobPayload } from "../queue/search.queue";
 import { searchGoogleMaps } from "../services/googleMapsScraper";
@@ -14,8 +14,8 @@ console.log("Starting Search Worker process...");
 export const searchWorker = new Worker<SearchJobPayload>(
   SEARCH_QUEUE,
   async (job: Job<SearchJobPayload>) => {
-    const { searchId, keyword, location } = job.data;
-    console.log(`[Worker] Processing job ${job.id} for searchId: ${searchId}`);
+    const { searchId, keyword, location, limit = 50 } = job.data;
+    console.log(`[Worker] Processing job ${job.id} for searchId: ${searchId}, limit: ${limit}`);
 
     try {
       // 1. Update search status = running, progress = 10, startedAt = now()
@@ -34,7 +34,7 @@ export const searchWorker = new Worker<SearchJobPayload>(
         .where(eq(searches.id, searchId));
       await job.updateProgress(40);
 
-      const scrapedLeads = await searchGoogleMaps(searchId, keyword, location);
+      const scrapedLeads = await searchGoogleMaps(searchId, keyword, location, limit);
 
       // Update scraped count and set progress = 60
       await db.update(searches)
@@ -44,6 +44,21 @@ export const searchWorker = new Worker<SearchJobPayload>(
         })
         .where(eq(searches.id, searchId));
       await job.updateProgress(60);
+
+      // Increment totalLeadsScraped for the API Key if the search was run via API Key
+      const searchRecords = await db
+        .select({ apiKeyId: searches.apiKeyId })
+        .from(searches)
+        .where(eq(searches.id, searchId))
+        .limit(1);
+      const searchRecord = searchRecords[0];
+      if (searchRecord && searchRecord.apiKeyId) {
+        await db.update(apiKeys)
+          .set({
+            totalLeadsScraped: sql`${apiKeys.totalLeadsScraped} + ${scrapedLeads.length}`,
+          })
+          .where(eq(apiKeys.id, searchRecord.apiKeyId));
+      }
 
       // 3. Perform Deduplication
       const { newLeads, duplicates } = await filterNewLeads(scrapedLeads);

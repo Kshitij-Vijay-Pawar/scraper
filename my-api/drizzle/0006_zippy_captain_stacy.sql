@@ -1,0 +1,1 @@
+ALTER TABLE "api_usage_logs" ALTER COLUMN "api_key_id" DROP NOT NULL;

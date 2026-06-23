@@ -3,6 +3,8 @@ import cors from "cors";
 import { checkStatusMiddleware } from "./middleware/checkStatus";
 import googleMapsRouter from "./api/routes/googleMapsScraper";
 import exportRouter from "./api/routes/export.routes";
+import authRouter from "./api/routes/auth.routes";
+import apiKeyRouter from "./api/routes/apiKey.routes";
 
 const app = express();
 
@@ -38,6 +40,8 @@ app.use("/public", publicRouter);
 app.use(checkStatusMiddleware);
 
 // --- SECTION 3: Protected Routes (Require validation endpoint to assess to true) ---
+app.use("/auth", authRouter);
+app.use("/api-keys", apiKeyRouter);
 app.use("/", googleMapsRouter);
 app.use("/export", exportRouter);
 
