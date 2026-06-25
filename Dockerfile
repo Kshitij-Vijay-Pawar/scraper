@@ -23,7 +23,7 @@ RUN bunx playwright install --with-deps chromium
 COPY . .
 
 # Expose Express server port
-EXPOSE 3000
+EXPOSE 5005
 
 # Set environment to production
 ENV NODE_ENV=production

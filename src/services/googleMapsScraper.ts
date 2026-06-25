@@ -76,12 +76,24 @@ export const searchGoogleMaps = async (
     const scrollableSelector = 'div[role="feed"]';
     let lastHeight = 0;
     let scrollAttempts = 0;
-    const maxScrollAttempts = 15;
+    let noChangeCount = 0;
+    const maxScrollAttempts = 50;
 
     console.log("Scrolling results list to load more places...");
     while (scrollAttempts < maxScrollAttempts) {
       const feedExists = await page.$(scrollableSelector);
       if (!feedExists) {
+        break;
+      }
+
+      // Check current unique URLs count
+      const currentUrlsCount = await page.evaluate(() => {
+        const anchors = Array.from(document.querySelectorAll('a[href*="/maps/place/"]'));
+        return new Set(anchors.map(a => (a as HTMLAnchorElement).href)).size;
+      });
+
+      if (currentUrlsCount >= limit) {
+        console.log(`Reached requested limit of ${limit} places (found ${currentUrlsCount}). Stopping scroll.`);
         break;
       }
 
@@ -99,9 +111,27 @@ export const searchGoogleMaps = async (
         return feed ? feed.scrollHeight : 0;
       }, scrollableSelector);
 
-      if (newHeight === lastHeight) {
+      const reachedEnd = await page.evaluate(() => {
+        return document.body.innerText.includes("You've reached the end of the list") || 
+               document.body.innerText.includes("No more results");
+      });
+
+      if (reachedEnd) {
+        console.log("Reached end of list message in feed.");
         break;
       }
+
+      if (newHeight === lastHeight) {
+        noChangeCount++;
+        if (noChangeCount >= 3) {
+          console.log("Height did not change after 3 attempts. Stopping scroll.");
+          break;
+        }
+        await page.waitForTimeout(2000);
+      } else {
+        noChangeCount = 0;
+      }
+
       lastHeight = newHeight;
       scrollAttempts++;
     }

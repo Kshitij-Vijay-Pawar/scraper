@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { enrichSingleLead } from "./services/enrichment";
 import express from "express";
 
-const BASE_URL = "http://localhost:3000";
+const BASE_URL = process.env.PORT ? `http://localhost:${process.env.PORT}` : `http://localhost:5005`;
 
 // --- MOCK WEBSITE SERVER ---
 const mockServer = express();

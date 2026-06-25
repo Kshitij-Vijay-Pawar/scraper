@@ -69,8 +69,9 @@ import { searchQueue } from "./queue/search.queue";
 import { enrichmentQueue } from "./queue/enrichment.queue";
 import { redisConnection } from "./queue/redis";
 
-const server = app.listen(3000, () => {
-    console.log("Server running on port 3000");
+const PORT = process.env.PORT || 5005;
+const server = app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
 });
 
 // --- Graceful Shutdown Handler ---

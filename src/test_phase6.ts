@@ -2,7 +2,7 @@ import { db } from "./db";
 import { users, apiKeys, apiUsageLogs } from "./db/schema";
 import { eq } from "drizzle-orm";
 
-const BASE_URL = "http://localhost:3000";
+const BASE_URL =  process.env.PORT ? `http://localhost:${process.env.PORT}` : `http://localhost:5005`;
 
 async function runTests() {
   console.log("==================================================");

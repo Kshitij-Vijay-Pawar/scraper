@@ -22,7 +22,7 @@ These endpoints are used to manage user registrations, logins, and retrieve sess
   ```
 * **Curl Command:**
   ```bash
-  curl -s -X POST http://localhost:3000/auth/register \
+  curl -s -X POST http://localhost:5005/auth/register \
     -H "Content-Type: application/json" \
     -d '{"name": "John Doe", "email": "john@example.com", "password": "password123"}'
   ```
@@ -52,7 +52,7 @@ These endpoints are used to manage user registrations, logins, and retrieve sess
   ```
 * **Curl Command:**
   ```bash
-  curl -s -X POST http://localhost:3000/auth/login \
+  curl -s -X POST http://localhost:5005/auth/login \
     -H "Content-Type: application/json" \
     -d '{"email": "john@example.com", "password": "password123"}'
   ```
@@ -70,7 +70,7 @@ These endpoints are used to manage user registrations, logins, and retrieve sess
 * **Headers:** `Authorization: Bearer <jwt_token>`
 * **Curl Command:**
   ```bash
-  curl -s -X GET http://localhost:3000/auth/me \
+  curl -s -X GET http://localhost:5005/auth/me \
     -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
   ```
 * **Expected Response (200 OK):**
@@ -100,7 +100,7 @@ These endpoints require a JWT Bearer token and are used by developers to create,
   ```
 * **Curl Command:**
   ```bash
-  curl -s -X POST http://localhost:3000/api-keys \
+  curl -s -X POST http://localhost:5005/api-keys \
     -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..." \
     -H "Content-Type: application/json" \
     -d '{"name": "Production App"}'
@@ -119,7 +119,7 @@ These endpoints require a JWT Bearer token and are used by developers to create,
 * **Headers:** `Authorization: Bearer <jwt_token>`
 * **Curl Command:**
   ```bash
-  curl -s -X GET http://localhost:3000/api-keys \
+  curl -s -X GET http://localhost:5005/api-keys \
     -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
   ```
 * **Expected Response (200 OK):**
@@ -147,7 +147,7 @@ These endpoints require a JWT Bearer token and are used by developers to create,
 * **Headers:** `Authorization: Bearer <jwt_token>`
 * **Curl Command:**
   ```bash
-  curl -s -X DELETE http://localhost:3000/api-keys/1b392a83-a74b-4b2e-a9b0-9a291f08bfcd \
+  curl -s -X DELETE http://localhost:5005/api-keys/1b392a83-a74b-4b2e-a9b0-9a291f08bfcd \
     -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
   ```
 * **Expected Response (200 OK):**
@@ -167,7 +167,7 @@ These endpoints require a JWT Bearer token and are used by developers to create,
 * **Purpose:** Verify if the API is running and reachable.
 * **Curl Command:**
   ```bash
-  curl -s -X GET http://localhost:3000/public/health
+  curl -s -X GET http://localhost:5005/public/health
   ```
 * **Expected Response (200 OK):**
   ```json
@@ -189,7 +189,7 @@ These endpoints require authentication. You must provide EITHER a JWT Bearer tok
 * **Headers:** `x-api-key: sk_live_...` or `Authorization: Bearer <token>`
 * **Curl Command:**
   ```bash
-  curl -s -X GET http://localhost:3000/searches \
+  curl -s -X GET http://localhost:5005/searches \
     -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..."
   ```
 * **Expected Response (200 OK):**
@@ -226,7 +226,7 @@ These endpoints require authentication. You must provide EITHER a JWT Bearer tok
   ```
 * **Curl Command:**
   ```bash
-  curl -s -X POST http://localhost:3000/search \
+  curl -s -X POST http://localhost:5005/search \
     -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..." \
     -H "Content-Type: application/json" \
     -d '{"keyword": "dentist", "location": "Miami"}'
@@ -247,7 +247,7 @@ These endpoints require authentication. You must provide EITHER a JWT Bearer tok
 * **Headers:** `x-api-key: sk_live_...`
 * **Curl Command:**
   ```bash
-  curl -s -X GET http://localhost:3000/search/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d \
+  curl -s -X GET http://localhost:5005/search/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d \
     -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..."
   ```
 * **Expected Response (200 OK):**
@@ -277,7 +277,7 @@ These endpoints require authentication. You must provide EITHER a JWT Bearer tok
 * **Headers:** `x-api-key: sk_live_...`
 * **Curl Command:**
   ```bash
-  curl -s -X GET http://localhost:3000/search/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d/results \
+  curl -s -X GET http://localhost:5005/search/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d/results \
     -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..."
   ```
 * **Expected Response (200 OK):**
@@ -310,7 +310,7 @@ These endpoints require authentication. You must provide EITHER a JWT Bearer tok
 * **Headers:** `x-api-key: sk_live_...`
 * **Curl Command:**
   ```bash
-  curl -s -X GET http://localhost:3000/leads \
+  curl -s -X GET http://localhost:5005/leads \
     -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..."
   ```
 * **Expected Response (200 OK):**
@@ -327,7 +327,7 @@ These endpoints require authentication. You must provide EITHER a JWT Bearer tok
 * **Headers:** `x-api-key: sk_live_...` or `Authorization: Bearer <token>`
 * **Curl Command:**
   ```bash
-  curl -s -X GET http://localhost:3000/leads/7d4e4551-39e3-41b7-9b1d-2c6fa80a983e \
+  curl -s -X GET http://localhost:5005/leads/7d4e4551-39e3-41b7-9b1d-2c6fa80a983e \
     -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..."
   ```
 * **Expected Response (200 OK):**
@@ -376,7 +376,7 @@ These endpoints require authentication. You must provide EITHER a JWT Bearer tok
   *(Set `force: true` to bypass the already-enriched protection and re-enrich leads)*
 * **Curl Command:**
   ```bash
-  curl -s -X POST http://localhost:3000/enrich/leads \
+  curl -s -X POST http://localhost:5005/enrich/leads \
     -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..." \
     -H "Content-Type: application/json" \
     -d '{"leadIds": ["7d4e4551-39e3-41b7-9b1d-2c6fa80a983e"], "force": false}'
@@ -402,7 +402,7 @@ These endpoints require authentication. You must provide EITHER a JWT Bearer tok
   ```
 * **Curl Command:**
   ```bash
-  curl -s -X POST http://localhost:3000/enrich/search/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d \
+  curl -s -X POST http://localhost:5005/enrich/search/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d \
     -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..." \
     -H "Content-Type: application/json" \
     -d '{"force": false}'
@@ -422,7 +422,7 @@ These endpoints require authentication. You must provide EITHER a JWT Bearer tok
 * **Headers:** `x-api-key: sk_live_...` or `Authorization: Bearer <token>`
 * **Curl Command:**
   ```bash
-  curl -s -X GET http://localhost:3000/enrich/5c9e2b10-6ee7-41ab-8012-9c17be9f80a2 \
+  curl -s -X GET http://localhost:5005/enrich/5c9e2b10-6ee7-41ab-8012-9c17be9f80a2 \
     -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..."
   ```
 * **Expected Response (200 OK):**
@@ -449,7 +449,7 @@ These endpoints require authentication. You must provide EITHER a JWT Bearer tok
 * **Headers:** `x-api-key: sk_live_...` or `Authorization: Bearer <token>`
 * **Curl Command:**
   ```bash
-  curl -s -X DELETE http://localhost:3000/enrich/5c9e2b10-6ee7-41ab-8012-9c17be9f80a2 \
+  curl -s -X DELETE http://localhost:5005/enrich/5c9e2b10-6ee7-41ab-8012-9c17be9f80a2 \
     -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..."
   ```
 * **Expected Response (200 OK):**
@@ -472,7 +472,7 @@ Allows users to download formatted spreadsheets of search results they own.
 * **Headers:** `x-api-key: sk_live_...` or `Authorization: Bearer <token>`
 * **Curl Command:**
   ```bash
-  curl -J -O -L http://localhost:3000/export/csv/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d \
+  curl -J -O -L http://localhost:5005/export/csv/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d \
     -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..."
   ```
   *(Using `-J -O -L` flags will automatically write the downloaded data to a file named `leads.csv` as specified by the server's headers)*
@@ -486,7 +486,7 @@ Allows users to download formatted spreadsheets of search results they own.
 * **Headers:** `x-api-key: sk_live_...` or `Authorization: Bearer <token>`
 * **Curl Command:**
   ```bash
-  curl -J -O -L http://localhost:3000/export/excel/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d \
+  curl -J -O -L http://localhost:5005/export/excel/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d \
     -H "x-api-key: sk_live_2a7cf89c7d42e6a7c8..."
   ```
   *(Using `-J -O -L` flags will automatically write the downloaded data to a file named `leads.xlsx` as specified by the server's headers)*
